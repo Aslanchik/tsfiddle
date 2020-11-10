@@ -49,6 +49,44 @@ function autoBind(_: any, _2:string, descriptor:PropertyDescriptor){
     return adjDescriptor;
 }
 
+class ProjectList {
+    // Initialize class properties
+    templateEl: HTMLTemplateElement;
+    hostEl: HTMLDivElement;
+    element: HTMLElement;
+    // This class expected an argument inside the constructor which is the type of project (active or finished)
+    constructor(private type: 'active' | 'finished'){
+        // Determine property values by grabbing them from the DOM and typecasting to respective types, adding ! so that TS knows that these are not null
+        this.templateEl = document.getElementById('project-list')! as HTMLTemplateElement; 
+        this.hostEl = document.getElementById('app')! as HTMLDivElement;
+        // Import html content from template element
+        const importedHtmlContent = document.importNode(this.templateEl.content, true);
+        // Get form element from imported html content
+        this.element = importedHtmlContent.firstElementChild as HTMLElement;
+        // Interact with element and add an ID depending on initialized ProjectList type
+        this.element.id = `${type}-projects`;
+        // Attach imported element into hostElement
+        this.attach();
+        // Render content into the element
+        this.renderContent();
+    }
+
+    // A method which renders content into the selected element
+    private renderContent(){
+        // Determine an ID depending on Project list type
+        const listId = `${this.type}-projects-list`;
+        // Set id to the UL element
+        this.element.querySelector('ul')!.id = listId;
+        // Insert text into the h2 element
+        this.element.querySelector('h2')!.textContent = this.type.toUpperCase() + ' PROJECTS'
+    }
+
+    // A method which takes an html element and adds it into another element
+    private attach(){
+        this.hostEl.insertAdjacentElement('beforeend', this.element);
+    }
+}
+
 class ProjectInput {
     // Initialize class properties
     templateEl: HTMLTemplateElement;
@@ -142,5 +180,10 @@ class ProjectInput {
         this.hostEl.insertAdjacentElement('afterbegin', this.formEl);
     }
 }
+
+
 // Create a new Project Input instance
 const projInput = new ProjectInput();
+// Create new ProjectLists Instance
+const activeProjList = new ProjectList('active');
+const finishedProjList = new ProjectList('finished');
