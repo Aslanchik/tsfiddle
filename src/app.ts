@@ -1,3 +1,47 @@
+// ProjectState is a singleton class which means there can only be one and only instance of this class and we will allways work with that instance
+class ProjectState{
+    // Array of event listeners
+    private listeners: any[] = [];
+    // Define a starting projects array
+    private projects: any[] = [];
+    // Define an instance property so you can use this class as a singleton
+    private static instance: ProjectState;
+    private constructor(){}
+
+    // Static method that retrieves the single instance
+    static getInstance(){
+        if(this.instance){
+            return this.instance;
+        }
+        // If this class was not instantiated - instantiate it!
+        this.instance = new ProjectState();
+        return this.instance;
+    }
+
+    // Public method that lets us push a new listener function into the listener array
+    addListener(listenFnc:Function){
+        this.listeners.push(listenFnc);
+    }
+    // Public method that lets us add a new project into the state array
+    addProject(title:string, description:string, people:number){
+        const newProject ={
+            id:Math.random().toString(),
+            title,
+            description,
+            people
+        }
+        this.projects.push(newProject);
+        // Loop through the listener functions and pass them a new array based on the projects array
+        for(const listenFnc of this.listeners){
+            listenFnc(this.projects.slice());
+        }
+    }
+}
+// Get the instance (or create a new one if it has not been declared yet) so you always work with the same instance of project state
+const projectState = ProjectState.getInstance();
+
+
+
 // Define A validation interface with validation rules
 interface Validatable{
     value: string | number;
@@ -54,23 +98,42 @@ class ProjectList {
     templateEl: HTMLTemplateElement;
     hostEl: HTMLDivElement;
     element: HTMLElement;
+    assignedProjects:any[];
     // This class expected an argument inside the constructor which is the type of project (active or finished)
     constructor(private type: 'active' | 'finished'){
         // Determine property values by grabbing them from the DOM and typecasting to respective types, adding ! so that TS knows that these are not null
         this.templateEl = document.getElementById('project-list')! as HTMLTemplateElement; 
         this.hostEl = document.getElementById('app')! as HTMLDivElement;
+        this.assignedProjects = [];
         // Import html content from template element
         const importedHtmlContent = document.importNode(this.templateEl.content, true);
         // Get form element from imported html content
         this.element = importedHtmlContent.firstElementChild as HTMLElement;
         // Interact with element and add an ID depending on initialized ProjectList type
         this.element.id = `${type}-projects`;
+        // Assign a listener function to any projects change
+        projectState.addListener((projects:any[]) =>{
+            // overwrite assignedProjects property with the projects array from the state
+            this.assignedProjects = projects;
+            // Render Projects into the dom
+            this.renderProjects();
+        })
         // Attach imported element into hostElement
         this.attach();
         // Render content into the element
         this.renderContent();
     }
 
+    // A method that renders projects based on assigned projects
+    private renderProjects(){
+        const listEl = document.getElementById(`${this.type}-projects-list`)! as HTMLUListElement;
+        // Loop through assignedProjects property and create list elements with title as textcontent and then append to ul
+        for(const projItem of this.assignedProjects){
+            const listItem = document.createElement('li');
+            listItem.textContent = projItem.title;
+            listEl.appendChild(listItem);
+        }
+    }
     // A method which renders content into the selected element
     private renderContent(){
         // Determine an ID depending on Project list type
@@ -163,7 +226,8 @@ class ProjectInput {
         if(Array.isArray(userInput)){
             // Destructure array to get tuple props
             const [title, description, people] = userInput;
-            console.log(title, description, people);
+            // Push the new project into our state instance
+            projectState.addProject(title, description, people);
             // Clear input after submission
             this.clearInput();
         }
