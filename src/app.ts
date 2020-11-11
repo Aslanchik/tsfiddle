@@ -1,3 +1,15 @@
+// DRAG AND DROP Interfaces
+interface Draggable{
+    dragStartHandler(e: DragEvent):void;
+    dragEndHandler(e: DragEvent):void;
+}
+
+interface DragTarget{
+    dragOverHandler(e:DragEvent):void;
+    dropHandler(e:DragEvent):void;
+    dragLeaveHandler(e:DragEvent):void;
+}
+
 // Project Type
 enum ProjectStatus { Active, Finished};
 class Project {
@@ -43,6 +55,23 @@ class ProjectState extends State<Project>{
         // Create a new instance of project class with Random id, title, description, people and a ProjectStatus of Active
         const newProject = new Project(Math.random().toString(), title, description, people, ProjectStatus.Active);
         this.projects.push(newProject);
+        this.updateListeners();
+        
+    }
+    // Public method that handles moving project from one list to another Statewise
+    moveProject(projectId: string, newStatus: ProjectStatus){
+        // Fish the selected project from the projects state
+        const project = this.projects.find(project => project.id === projectId);
+        // Check if project exists at all and if it does, check if its status is the same as its current status
+        if(project && project.projectStatus !== newStatus){
+            // If both are true update the new status
+            project.projectStatus = newStatus;
+            // After updating status rerender the DOM
+            this.updateListeners();
+        }
+    }
+    
+    private updateListeners(){
         // Loop through the listener functions and pass them a new array based on the projects array
         for(const listenFnc of this.listeners){
             listenFnc(this.projects.slice());
@@ -133,7 +162,53 @@ abstract class Component<T extends HTMLElement, U extends HTMLElement> {
     abstract renderContent():void;
 }
 
-class ProjectList extends Component<HTMLDivElement, HTMLElement> {
+class ProjectItem extends Component<HTMLUListElement, HTMLLIElement> implements Draggable{
+    private project:Project;
+    // Define a getter that returns a template text to display inside the project item depending on amount of people set in the project
+    get persons(){
+        if(this.project.people === 1){
+            return '1 person';
+        } else {
+            return `${this.project.people} persons`;
+        }
+    }
+    // Call the constructor method and pass it a host element Id and the current project
+    constructor(hostId:string, project:Project){
+        // Call super(Base component constructor)
+        super('single-project', hostId, false, project.id);
+        // Initialize project with project recieved when instantiating ProjectItem
+        this.project = project;
+        this.configure();
+        this.renderContent();
+    }
+
+    // Define methods for drag and drop
+    @autoBind
+    dragStartHandler(e:DragEvent){
+        // Transfer project id with the drag event
+        e.dataTransfer!.setData('text/plain', this.project.id);
+        e.dataTransfer!.effectAllowed = 'move';
+    }
+
+    dragEndHandler(_:DragEvent){
+        console.log('Drag end!')
+    }
+
+    configure(){
+        // add event listeners to the element based on drag and drop
+        this.element.addEventListener('dragstart', this.dragStartHandler);
+        this.element.addEventListener('dragend', this.dragEndHandler);
+    }
+
+    renderContent(){
+        // Render content into the template
+        this.element.querySelector('h2')!.textContent = this.project.title;
+        this.element.querySelector('h3')!.textContent = this.persons + ' assigned';
+        this.element.querySelector('p')!.textContent = this.project.description;
+    }
+}
+
+class ProjectList extends Component<HTMLDivElement, HTMLElement> implements DragTarget {
     // Initialize class properties
     assignedProjects:Project[];
     // This class expected an argument inside the constructor which is the type of project (active or finished)
@@ -146,6 +221,28 @@ class ProjectList extends Component<HTMLDivElement, HTMLElement> {
         // Render content into the element
         this.renderContent();
     }
+
+    @autoBind
+    dragOverHandler(e: DragEvent){
+        if(e.dataTransfer && e.dataTransfer.types[0] === 'text/plain'){
+            e.preventDefault();
+        const listEl = this.element.querySelector('ul')!;
+        listEl.classList.add('droppable');
+        }
+    }
+
+    @autoBind
+    dropHandler(e: DragEvent){
+        const projId = e.dataTransfer!.getData('text/plain');
+        projectState.moveProject(projId, this.type === 'active' ? ProjectStatus.Active : ProjectStatus.Finished);
+    }
+
+    @autoBind
+    dragLeaveHandler(_: DragEvent){
+            const listEl = this.element.querySelector('ul')!;
+            listEl.classList.remove('droppable');
+    }
+
     // A method which renders content into the selected element
     renderContent(){
         // Determine an ID depending on Project list type
@@ -157,6 +254,9 @@ class ProjectList extends Component<HTMLDivElement, HTMLElement> {
     }
     // A method that assigns a listener function to any projects change
     configure(){
+        this.element.addEventListener('dragover', this.dragOverHandler)
+        this.element.addEventListener('dragleave', this.dragLeaveHandler)
+        this.element.addEventListener('drop', this.dropHandler)
         // Assign a listener function to any projects change
         projectState.addListener((projects:Project[]) =>{
             // Filter projects based on Active or Finished
@@ -180,9 +280,7 @@ class ProjectList extends Component<HTMLDivElement, HTMLElement> {
         listEl.innerHTML = '';
         // Loop through assignedProjects property and create list elements with title as textcontent and then append to ul
         for(const projItem of this.assignedProjects){
-            const listItem = document.createElement('li');
-            listItem.textContent = projItem.title;
-            listEl.appendChild(listItem);
+            new ProjectItem(this.element.querySelector('ul')!.id, projItem);
         }
     }
 }
